@@ -20,12 +20,14 @@ EXAMPLES = 2000
 
 x = t.linspace(-math.pi, math.pi, EXAMPLES)
 y = TARGET_FUNC(x)
-x_cos = t.stack([(n*x).cos() for n in range(1, NUM_FREQUENCIES+1)])
-x_sin = t.stack([(n*x).sin() for n in range(1, NUM_FREQUENCIES+1)])
+x_cos_sin = t.vstack(
+    (t.stack([(n*x).cos() for n in range(1, NUM_FREQUENCIES+1)]),
+     t.stack([(n*x).sin() for n in range(1, NUM_FREQUENCIES+1)]))).T
 
-a_0 = t.randn(1, requires_grad=True)
-A_n = t.randn(NUM_FREQUENCIES, requires_grad=True)
-B_n = t.randn(NUM_FREQUENCIES, requires_grad=True)
+model = t.nn.Sequential(
+    t.nn.Linear(NUM_FREQUENCIES * 2, 1),
+    t.nn.Flatten()
+)
 
 y_pred_list = []
 coeffs_list = []
@@ -33,7 +35,7 @@ coeffs_list = []
 for step in range(TOTAL_STEPS):
 
     # Compute `y_pred` using your coeffs, and the terms `x_cos`, `x_sin`
-    y_pred = a_0 / 2 + t.einsum('i,jk->k', A_n, x_cos) + t.einsum('i,jk->k', B_n, x_sin)
+    y_pred = model(x_cos_sin)
 
     # Compute `loss`, which is the sum of squared error between `y` and `y_pred`
     loss = ((y - y_pred)**2).sum()
@@ -41,20 +43,14 @@ for step in range(TOTAL_STEPS):
 
     if step % 100 == 0:
         print(f"{loss = :.2f}")
-        coeffs_list.append([a_0.detach().item(), A_n.detach().numpy(), B_n.detach().numpy()])
-        y_pred_list.append(y_pred.detach().numpy())
+        #coeffs_list.append()
+        #y_pred_list.append(y_pred.detach().numpy())
 
     # Update weights using gradient descent (using the parameter `LEARNING_RATE`)
     with t.no_grad():
-        a_0 = a_0 - LEARNING_RATE * a_0.grad
-        A_n = A_n - LEARNING_RATE * A_n.grad
-        B_n = B_n - LEARNING_RATE * B_n.grad
-    a_0.grad = None
-    A_n.grad = None
-    B_n.grad = None
-    a_0.requires_grad = True
-    A_n.requires_grad = True
-    B_n.requires_grad = True
+        for p in model.parameters():
+            p -= LEARNING_RATE * p.grad
+    model.zero_grad()
 
 print('Before visualise_fourier_coeff_convergence')
 fig = utils.visualise_fourier_coeff_convergence(x.numpy(), y.numpy(), y_pred_list, coeffs_list)
