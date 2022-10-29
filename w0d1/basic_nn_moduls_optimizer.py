@@ -34,6 +34,7 @@ model = t.nn.Sequential(
 y_pred_list = []
 coeffs_list = []
 
+optim = t.optim.SGD(model.parameters(), lr=LEARNING_RATE) #, momentum=0.9 - in 3 steps
 for step in range(TOTAL_STEPS):
 
     # Compute `y_pred` using your coeffs, and the terms `x_cos`, `x_sin`
@@ -52,10 +53,12 @@ for step in range(TOTAL_STEPS):
         coeffs_list.append([a_0, A_n.copy(), B_n.copy()])
 
     # Update weights using gradient descent (using the parameter `LEARNING_RATE`)
-    with t.inference_mode():
-        for p in model.parameters():
-            p -= LEARNING_RATE * p.grad
-    model.zero_grad()
+    # with t.inference_mode():
+    #     for p in model.parameters():
+    #         p -= LEARNING_RATE * p.grad
+    # model.zero_grad()
+    optim.step()
+    optim.zero_grad()
 
 print('Before visualise_fourier_coeff_convergence')
 fig = utils.visualise_fourier_coeff_convergence(x.numpy(), y.numpy(), y_pred_list, coeffs_list)
