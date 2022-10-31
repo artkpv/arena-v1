@@ -1,4 +1,5 @@
 import torch as t
+import utils
 from collections import namedtuple
 
 TestCase = namedtuple("TestCase", ["output", "size", "stride"])
@@ -64,3 +65,66 @@ for (i, case) in enumerate(test_cases):
             print(f"Actual: {actual} ")
         else:
             print(f"Test {i} passed! ")
+
+
+def as_strided_trace(mat: t.Tensor) -> t.Tensor:
+    '''
+    Returns the same as `torch.trace`, using only `as_strided` and `sum` methods.
+    '''
+    n = min(mat.shape)
+    return t.as_strided(
+        mat,
+        size=(n,),
+        stride=(n+1,)
+    ).sum()
+
+
+utils.test_trace(as_strided_trace)
+
+def as_strided_mv(mat: t.Tensor, vec: t.Tensor) -> t.Tensor:
+    '''
+    Returns the same as `torch.matmul`, using only `as_strided` and `sum` methods.
+    '''
+    n, m = mat.shape
+    k = vec.shape[0]
+    orig_stride = vec.stride(0)
+    assert m == k, f'{m} == {k}'
+    vec_s = t.as_strided(
+            vec,
+            size=(n,m),
+            stride=(0,orig_stride)
+        )
+    res = (
+        mat * vec_s
+    ).sum(dim=1).T
+    return res
+
+utils.test_mv(as_strided_mv)
+utils.test_mv2(as_strided_mv)
+
+def as_strided_mm(matA: t.Tensor, matB: t.Tensor) -> t.Tensor:
+    '''
+    Returns the same as `torch.matmul`, using only `as_strided` and `sum` methods.
+    '''
+    n,m = matA.shape
+    k,p = matB.shape
+    assert m == k, f'{m} == {k}'
+    matAext = t.as_strided(
+        matA,
+        size=(n, m, p),
+        stride=(matA.stride(0), matA.stride(1), 0)
+    )
+    matBext = t.as_strided(
+        matB,
+        size=(n, m, p),
+        stride=(0, matB.stride(0), matB.stride(1))
+    )
+    return (matAext * matBext).sum(dim=1)
+
+
+
+
+utils.test_mm(as_strided_mm)
+utils.test_mm2(as_strided_mm)
+
+print('exit')
