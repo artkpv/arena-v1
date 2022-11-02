@@ -5,6 +5,7 @@ from typing import Union, Optional, Callable
 import torch as t
 import torchvision
 import utils
+from utils import IntOrPair, Pair, force_pair
 
 def conv1d_minimal(x: t.Tensor, weights: t.Tensor) -> t.Tensor:
     '''Like torch's conv1d using bias=False and all other keyword arguments left at their default values.
@@ -54,9 +55,6 @@ def toy_test():
     t.testing.assert_close(res, exp )
     print('PASS: toy_test')
 
-toy_test()
-utils.test_conv1d_minimal(conv1d_minimal)
-
 
 def conv2d_minimal(x: t.Tensor, weights: t.Tensor) -> t.Tensor:
     '''Like torch's conv2d using bias=False and all other keyword arguments left at their default values.
@@ -94,7 +92,6 @@ def conv2d_minimal(x: t.Tensor, weights: t.Tensor) -> t.Tensor:
     res = t.einsum('b c h w i j, o c i j -> b o h w', strided_x, weights)
     return res
 
-utils.test_conv2d_minimal(conv2d_minimal)
 
 
 def pad1d(x: t.Tensor, left: int, right: int, pad_value: float) -> t.Tensor:
@@ -109,8 +106,6 @@ def pad1d(x: t.Tensor, left: int, right: int, pad_value: float) -> t.Tensor:
     xx[..., left:(-right if right > 0 else None)] = x[..., :]
     return xx
 
-utils.test_pad1d(pad1d)
-utils.test_pad1d_multi_channel(pad1d)
 
 def pad2d(x: t.Tensor, left: int, right: int, top: int, bottom: int, pad_value: float) -> t.Tensor:
     '''Return a new tensor with padding applied to the edges.
@@ -124,8 +119,6 @@ def pad2d(x: t.Tensor, left: int, right: int, top: int, bottom: int, pad_value: 
     xx[:,:, top:(-bottom if bottom>0 else None), left:(-right if right > 0 else None)] = x[:,:, :, :]
     return xx
 
-utils.test_pad2d(pad2d)
-utils.test_pad2d_multi_channel(pad2d)
 
 
 def conv1d(x, weights, stride: int = 1, padding: int = 0) -> t.Tensor:
@@ -160,26 +153,6 @@ def conv1d(x, weights, stride: int = 1, padding: int = 0) -> t.Tensor:
     res = t.einsum('b i j k, o i k -> b o j', strided_x, weights)
     return res
 
-utils.test_conv1d(conv1d)
-
-
-IntOrPair = Union[int, tuple[int, int]]
-Pair = tuple[int, int]
-
-def force_pair(v: IntOrPair) -> Pair:
-    '''Convert v to a pair of int, if it isn't already.'''
-    if isinstance(v, tuple):
-        if len(v) != 2:
-            raise ValueError(v)
-        return (int(v[0]), int(v[1]))
-    elif isinstance(v, int):
-        return (v, v)
-    raise ValueError(v)
-
-# Examples of how this function can be used:
-#       force_pair((1, 2))     ->  (1, 2)
-#       force_pair(2)          ->  (2, 2)
-#       force_pair((1, 2, 3))  ->  ValueError
 
 
 def conv2d(x, weights, stride: IntOrPair = 1, padding: IntOrPair = 0) -> t.Tensor:
@@ -221,8 +194,6 @@ def conv2d(x, weights, stride: IntOrPair = 1, padding: IntOrPair = 0) -> t.Tenso
     )
     res = t.einsum('b c h w i j, o c i j -> b o h w', strided_x, weights)
     return res
-
-utils.test_conv2d(conv2d)
 
 
 def maxpool2d(
@@ -268,4 +239,16 @@ def maxpool2d(
     res = t.amax(strided_x, (4,5))
     return res
 
-utils.test_maxpool2d(maxpool2d)
+
+if __name__ == '__main__':
+    toy_test()
+    utils.test_conv1d_minimal(conv1d_minimal)
+    utils.test_conv2d_minimal(conv2d_minimal)
+    utils.test_pad1d(pad1d)
+    utils.test_pad1d_multi_channel(pad1d)
+    utils.test_pad2d(pad2d)
+    utils.test_pad2d_multi_channel(pad2d)
+    utils.test_conv1d(conv1d)
+    utils.test_conv2d(conv2d)
+    utils.test_maxpool2d(maxpool2d)
+

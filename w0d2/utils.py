@@ -353,3 +353,23 @@ def test_linear_no_bias(Linear):
     expected = official(x)
     t.testing.assert_close(actual, expected)
     print("All tests in `test_linear_no_bias` passed!")
+
+
+IntOrPair = Union[int, tuple[int, int]]
+Pair = tuple[int, int]
+
+def force_pair(v: IntOrPair) -> Pair:
+    '''Convert v to a pair of int, if it isn't already.'''
+    if isinstance(v, tuple):
+        if len(v) != 2:
+            raise ValueError(v)
+        return (int(v[0]), int(v[1]))
+    elif isinstance(v, int):
+        return (v, v)
+    raise ValueError(v)
+
+# Examples of how this function can be used:
+#       force_pair((1, 2))     ->  (1, 2)
+#       force_pair(2)          ->  (2, 2)
+#       force_pair((1, 2, 3))  ->  ValueError
+
