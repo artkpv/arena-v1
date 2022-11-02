@@ -106,7 +106,7 @@ def pad1d(x: t.Tensor, left: int, right: int, pad_value: float) -> t.Tensor:
     '''
     s = x.shape
     xx = x.new_full((s[0], s[1], left + s[2] + right), pad_value)
-    xx[..., left:-right] = x[..., :]
+    xx[..., left:(-right if right > 0 else None)] = x[..., :]
     return xx
 
 utils.test_pad1d(pad1d)
@@ -126,3 +126,109 @@ def pad2d(x: t.Tensor, left: int, right: int, top: int, bottom: int, pad_value: 
 
 utils.test_pad2d(pad2d)
 utils.test_pad2d_multi_channel(pad2d)
+
+
+def conv1d(x, weights, stride: int = 1, padding: int = 0) -> t.Tensor:
+    '''Like torch's conv1d using bias=False.
+
+    x: shape (batch, in_channels, width)
+    weights: shape (out_channels, in_channels, kernel_width)
+
+    Returns: shape (batch, out_channels, output_width)
+    '''
+    x = pad1d(x, padding, padding, 0.0)
+    b_num, inc_num, w_val = x.shape
+    outc_num, w_inc_num, kw_val = weights.shape
+    assert inc_num == w_inc_num, f'{inc_num} == {w_inc_num}'
+    xs = x.stride()
+    l = (w_val - kw_val) // stride + 1
+    strided_x = t.as_strided(
+        x,
+        size=(
+            b_num,
+            inc_num,
+            l,
+            kw_val
+        ),
+        stride=(
+            xs[0],  # Next batch.
+            xs[1],  # Next in-channel.
+            xs[2] + stride - 1,  # Next kernel.
+            xs[2]  # Next element.
+        )
+    )
+    res = t.einsum('b i j k, o i k -> b o j', strided_x, weights)
+    return res
+
+utils.test_conv1d(conv1d)
+
+
+IntOrPair = Union[int, tuple[int, int]]
+Pair = tuple[int, int]
+
+def force_pair(v: IntOrPair) -> Pair:
+    '''Convert v to a pair of int, if it isn't already.'''
+    if isinstance(v, tuple):
+        if len(v) != 2:
+            raise ValueError(v)
+        return (int(v[0]), int(v[1]))
+    elif isinstance(v, int):
+        return (v, v)
+    raise ValueError(v)
+
+# Examples of how this function can be used:
+#       force_pair((1, 2))     ->  (1, 2)
+#       force_pair(2)          ->  (2, 2)
+#       force_pair((1, 2, 3))  ->  ValueError
+
+
+def conv2d(x, weights, stride: IntOrPair = 1, padding: IntOrPair = 0) -> t.Tensor:
+    '''Like torch's conv2d using bias=False
+
+    x: shape (batch, in_channels, height, width)
+    weights: shape (out_channels, in_channels, kernel_height, kernel_width)
+
+    Returns: shape (batch, out_channels, output_height, output_width)
+    '''
+    hor_s, ver_s = force_pair(stride)
+    left, right = force_pair(padding)
+    x = pad2d(x, left, right, left, right, 0.0)
+    b_num, inc_num, h_val, w_val = x.shape
+    outc_num, w_inc_num, kh_val, kw_val = weights.shape
+    assert inc_num == w_inc_num, f'{inc_num} == {w_inc_num}'
+    xs = x.stride()
+    out_w = (w_val - kw_val)//ver_s + 1
+    out_h = (h_val - kh_val)//hor_s + 1
+    k_size = kh_val * kw_val
+    print(
+        f'{hor_s=}',
+        f'{ver_s=}', 
+        f'{w_val=}',
+        f'{out_w=}',
+        f'{out_h=}',
+        f'{x.shape=}',
+        f'{x.stride()=}',
+    )
+    strided_x = t.as_strided(
+        x,
+        size=(
+            b_num,
+            inc_num,
+            out_h,
+            out_w,
+            kh_val,
+            kw_val
+        ),
+        stride=(
+            xs[0],  # Next batch.
+            xs[1],  # Next in-channel
+            w_val * ver_s,
+            hor_s,
+            w_val,
+            1
+        )
+    )
+    res = t.einsum('b c h w i j, o c i j -> b o h w', strided_x, weights)
+    return res
+
+utils.test_conv2d(conv2d)
