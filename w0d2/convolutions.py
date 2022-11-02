@@ -190,25 +190,16 @@ def conv2d(x, weights, stride: IntOrPair = 1, padding: IntOrPair = 0) -> t.Tenso
 
     Returns: shape (batch, out_channels, output_height, output_width)
     '''
-    hor_s, ver_s = force_pair(stride)
-    left, right = force_pair(padding)
-    x = pad2d(x, left, right, left, right, 0.0)
+    ver_s, hor_s = force_pair(stride)
+    h_pad, w_pad = force_pair(padding)
+    x = pad2d(x, w_pad, w_pad, h_pad, h_pad, 0.0)
     b_num, inc_num, h_val, w_val = x.shape
     outc_num, w_inc_num, kh_val, kw_val = weights.shape
     assert inc_num == w_inc_num, f'{inc_num} == {w_inc_num}'
     xs = x.stride()
-    out_w = (w_val - kw_val)//ver_s + 1
-    out_h = (h_val - kh_val)//hor_s + 1
+    out_w = (w_val - kw_val)//hor_s + 1
+    out_h = (h_val - kh_val)//ver_s + 1
     k_size = kh_val * kw_val
-    print(
-        f'{hor_s=}',
-        f'{ver_s=}', 
-        f'{w_val=}',
-        f'{out_w=}',
-        f'{out_h=}',
-        f'{x.shape=}',
-        f'{x.stride()=}',
-    )
     strided_x = t.as_strided(
         x,
         size=(
@@ -232,3 +223,49 @@ def conv2d(x, weights, stride: IntOrPair = 1, padding: IntOrPair = 0) -> t.Tenso
     return res
 
 utils.test_conv2d(conv2d)
+
+
+def maxpool2d(
+    x: t.Tensor,
+    kernel_size: IntOrPair,
+    stride: Optional[IntOrPair] = None,
+    padding: IntOrPair = 0
+) -> t.Tensor:
+    '''Like PyTorch's maxpool2d.
+
+    x: shape (batch, channels, height, width)
+    stride: if None, should be equal to the kernel size
+
+    Return: (batch, channels, out_height, output_width)
+    '''
+    ver_s, hor_s = force_pair(stride if stride else kernel_size)
+    h_pad, w_pad = force_pair(padding)
+    x = pad2d(x, w_pad, w_pad, h_pad, h_pad, -float('inf'))
+    b_num, c_num, h_val, w_val = x.shape
+    kh_val, kw_val = force_pair(kernel_size)
+    xs = x.stride()
+    out_w = (w_val - kw_val)//hor_s + 1
+    out_h = (h_val - kh_val)//ver_s + 1
+    strided_x = t.as_strided(
+        x,
+        size=(
+            b_num,
+            c_num,
+            out_h,
+            out_w,
+            kh_val,
+            kw_val
+        ),
+        stride=(
+            xs[0],  # Next batch.
+            xs[1],  # Next in-channel
+            w_val * ver_s,
+            hor_s,
+            w_val,
+            1
+        )
+    )
+    res = t.amax(strided_x, (4,5))
+    return res
+
+utils.test_maxpool2d(maxpool2d)
