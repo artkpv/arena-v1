@@ -17,51 +17,25 @@ def conv1d_minimal(x: t.Tensor, weights: t.Tensor) -> t.Tensor:
     b_num, inc_num, w_val = x.shape
     outc_num, w_inc_num, kw_val = weights.shape
     assert inc_num == w_inc_num, f'{inc_num} == {w_inc_num}'
+    xs = x.stride()
     strided_x = t.as_strided(
         x,
         size=(
             b_num,
-            outc_num,
             inc_num,
             w_val - kw_val + 1,
             kw_val
         ),
         stride=(
-            inc_num * w_val,  # Next batch.
-            0,  # Repeat for out-channels.
-            w_val,  # Next in-channel.
-            1,  # Next kernel.
-            1  # Next element.
+            xs[0],  # Next batch.
+            xs[1],  # Next in-channel.
+            xs[2],  # Next kernel.
+            xs[2]  # Next element.
         )
     )
-    # print(x)
-    # print(x.shape)
-    # print(strided_x)
-    # print(strided_x.shape)
-    strided_w = t.as_strided(
-        weights,
-        size=(
-            b_num,
-            outc_num,
-            inc_num,
-            w_val - kw_val + 1,
-            kw_val
-        ),
-        stride=(
-            0,  # Repeat for every batch.
-            w_inc_num * kw_val,  # Next out-channel.
-            kw_val, # Next in-channel
-            0,  # Repeat 
-            1  # Next element
-        )
-    )
-    # print(weights)
-    # print(weights.shape)
-    # print(strided_w)
-    # print(strided_w.shape)
-    res = t.einsum('n o i s w, n o i s w -> n o s', strided_x, strided_w)
+    res = t.einsum('b i j k, o i k -> b o j', strided_x, weights)
     return res
-    
+
 def toy_test():
     x = t.tensor([
         [[1, 2, 3, 4], [5, 6, 7, 8]],
@@ -82,3 +56,73 @@ def toy_test():
 
 toy_test()
 utils.test_conv1d_minimal(conv1d_minimal)
+
+
+def conv2d_minimal(x: t.Tensor, weights: t.Tensor) -> t.Tensor:
+    '''Like torch's conv2d using bias=False and all other keyword arguments left at their default values.
+
+    x: shape (batch, in_channels, height, width)
+    weights: shape (out_channels, in_channels, kernel_height, kernel_width)
+
+    Returns: shape (batch, out_channels, output_height, output_width)
+    '''
+    b_num, inc_num, h_val, w_val = x.shape
+    outc_num, w_inc_num, kh_val, kw_val = weights.shape
+    assert inc_num == w_inc_num, f'{inc_num} == {w_inc_num}'
+    xs = x.stride()
+    out_w, out_h = (w_val - kw_val + 1), (h_val - kh_val + 1)
+    k_size = kh_val * kw_val
+    strided_x = t.as_strided(
+        x,
+        size=(
+            b_num,
+            inc_num,
+            out_h,
+            out_w,
+            kh_val,
+            kw_val
+        ),
+        stride=(
+            xs[0],  # Next batch.
+            xs[1],  # Next in-channel
+            w_val,
+            1,
+            w_val,
+            1
+        )
+    )
+    res = t.einsum('b c h w i j, o c i j -> b o h w', strided_x, weights)
+    return res
+
+utils.test_conv2d_minimal(conv2d_minimal)
+
+
+def pad1d(x: t.Tensor, left: int, right: int, pad_value: float) -> t.Tensor:
+    '''Return a new tensor with padding applied to the edges.
+
+    x: shape (batch, in_channels, width), dtype float32
+
+    Return: shape (batch, in_channels, left + right + width)
+    '''
+    s = x.shape
+    xx = x.new_full((s[0], s[1], left + s[2] + right), pad_value)
+    xx[..., left:-right] = x[..., :]
+    return xx
+
+utils.test_pad1d(pad1d)
+utils.test_pad1d_multi_channel(pad1d)
+
+def pad2d(x: t.Tensor, left: int, right: int, top: int, bottom: int, pad_value: float) -> t.Tensor:
+    '''Return a new tensor with padding applied to the edges.
+
+    x: shape (batch, in_channels, height, width), dtype float32
+
+    Return: shape (batch, in_channels, top + height + bottom, left + width + right)
+    '''
+    s = x.shape
+    xx = x.new_full((s[0], s[1], top + s[2] + bottom, left + s[3] + right), pad_value)
+    xx[:,:, top:(-bottom if bottom>0 else None), left:(-right if right > 0 else None)] = x[:,:, :, :]
+    return xx
+
+utils.test_pad2d(pad2d)
+utils.test_pad2d_multi_channel(pad2d)
