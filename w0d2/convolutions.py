@@ -4,8 +4,8 @@ from einops import reduce, rearrange, repeat
 from typing import Union, Optional, Callable
 import torch as t
 import torchvision
-import utils
-from utils import IntOrPair, Pair, force_pair
+import w0d2.utils
+from w0d2.utils import IntOrPair, Pair, force_pair
 
 def conv1d_minimal(x: t.Tensor, weights: t.Tensor) -> t.Tensor:
     '''Like torch's conv1d using bias=False and all other keyword arguments left at their default values.
