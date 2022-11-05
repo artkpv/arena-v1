@@ -105,7 +105,6 @@ if __name__ == '__main__':
 
     device = t.device('cuda:0' if t.cuda.is_available() else 'cpu')
 
-
     # TODO. Into Jupyter:
     loss_list = train_convnet(trainloader, epochs, loss_fn)
 
